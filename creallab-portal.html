@@ -431,7 +431,11 @@
             <option value="">Selecciona el producto vendido…</option>
           </select>
           <input type="number" id="venta-monto" min="0" step="0.01" placeholder="Monto vendido (S/)">
-          <input type="text" id="venta-comprador" placeholder="Comprador (opcional)">
+          <select id="venta-medio">
+            <option value="whatsapp">Pagó por WhatsApp / directo</option>
+            <option value="mercadopago">Pagó con Mercado Pago</option>
+          </select>
+          <input type="text" id="venta-comprador" class="full" placeholder="Comprador (opcional)">
           <textarea id="venta-notas" class="full" rows="2" placeholder="Notas (opcional)"></textarea>
           <div class="full">
             <button id="btn-reportar-venta" class="btn btn-ghost" type="button">+ Reportar venta</button>
@@ -540,7 +544,8 @@
       { id:"pr1", nombre:"Chuspa roja edición limitada", categoria:"OBRAS", tipo:"Tejido", precio:180, estado:"aprobado" },
     ],
     ventas: [
-      { id:"v1", producto_nombre:"Chuspa roja edición limitada", monto:180, comprador:"Ana R.", estado:"confirmada", comision_pct:10, comision_monto:18, monto_artista:162, liquidado:false },
+      { id:"v1", producto_nombre:"Chuspa roja edición limitada", monto:180, medio_pago:"whatsapp", comprador:"Ana R.", estado:"confirmada", comision_pct:10, comision_monto:18, monto_artista:162, liquidado:false },
+      { id:"v2", producto_nombre:"Chuspa roja edición limitada", monto:180, medio_pago:"mercadopago", comprador:"Luis T.", estado:"confirmada", comision_pct:10, comision_monto:18, monto_artista:162, liquidado:false },
     ],
     contenido: [
       { titulo:"Guía: preparación de matriz para grabado", descripcion:"PDF descargable con el paso a paso.", tipo:"contenido" },
@@ -669,8 +674,12 @@
     el.innerHTML = list.map(v => {
       let detalle;
       if (v.estado === "confirmada") {
-        detalle = `Tu parte: ${money(v.monto_artista)} · Comisión CREALLAB: ${money(v.comision_monto)} (${v.comision_pct}%)`
-          + (v.liquidado ? " · comisión ya liquidada ✓" : " · comisión pendiente de cobro");
+        detalle = `Tu parte: ${money(v.monto_artista)} · Comisión CREALLAB: ${money(v.comision_monto)} (${v.comision_pct}%)`;
+        if (v.medio_pago === "mercadopago") {
+          detalle += v.liquidado ? " · ya te transfirieron tu parte ✓" : " · CREALLAB tiene el pago, pendiente de transferirte tu parte";
+        } else {
+          detalle += v.liquidado ? " · comisión ya liquidada ✓" : " · comisión pendiente de cobro";
+        }
       } else if (v.estado === "rechazada") {
         detalle = v.notas ? "Motivo: " + v.notas : "El equipo no pudo confirmar esta venta.";
       } else {
@@ -924,6 +933,7 @@
         id: "v" + (MOCK.ventas.length + 1),
         producto_nombre: producto ? producto.nombre : "Producto",
         monto,
+        medio_pago: $("#venta-medio").value,
         comprador: $("#venta-comprador").value.trim(),
         notas: $("#venta-notas").value.trim(),
         estado: "pendiente",
@@ -934,7 +944,7 @@
       });
       renderVentas(MOCK.ventas);
       ["#venta-monto","#venta-comprador","#venta-notas"].forEach(sel => $(sel).value = "");
-      $("#venta-producto").value = "";
+      $("#venta-producto").value = ""; $("#venta-medio").value = "whatsapp";
       $("#venta-msg").textContent = "Reportada, pendiente de confirmación (modo demo) ✓";
       setTimeout(() => { $("#venta-msg").textContent = ""; }, 3000);
     });
@@ -1130,13 +1140,14 @@
       member_id: currentUser.id,
       producto_id: productoId,
       monto,
+      medio_pago: $("#venta-medio").value,
       comprador: $("#venta-comprador").value.trim() || null,
       notas: $("#venta-notas").value.trim() || null,
     });
     if (error) { msgEl.textContent = "Error: " + error.message; return; }
 
     ["#venta-monto","#venta-comprador","#venta-notas"].forEach(sel => $(sel).value = "");
-    $("#venta-producto").value = "";
+    $("#venta-producto").value = ""; $("#venta-medio").value = "whatsapp";
     await cargarVentas();
     msgEl.textContent = "Reportada, pendiente de confirmación ✓";
     setTimeout(() => { msgEl.textContent = ""; }, 3000);
