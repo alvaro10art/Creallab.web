@@ -471,6 +471,12 @@
         <p class="mundos-note">Cuando alguien te escriba desde el catálogo (con o sin foto de comprobante), la conversación aparece aquí — solo la ven ustedes dos.</p>
         <div id="conversaciones-list"><p class="empty">Aún no tienes conversaciones.</p></div>
       </div>
+
+      <div class="card wide" id="card-mis-compras">
+        <h2><span class="dot"></span>Mis conversaciones</h2>
+        <p class="mundos-note">Si le escribiste a algún artista desde el catálogo estando en tu cuenta, esa conversación queda guardada aquí — sin depender del navegador que uses.</p>
+        <div id="mis-conversaciones-list"><p class="empty">Aún no le escribiste a ningún artista.</p></div>
+      </div>
     </div>
   </div>
 </main>
@@ -581,6 +587,14 @@
         mensajes: [
           { autor_tipo:"comprador", texto:"Hola, ya hice el pago, acá está el comprobante.", imagen_url:"", creado_en:"2026-08-01T15:20:00" },
           { autor_tipo:"artista", texto:"¡Recibido! En un momento te confirmo el envío.", imagen_url:"", creado_en:"2026-08-01T15:24:00" },
+        ],
+      },
+    ],
+    misConversaciones: [
+      {
+        id:"m1", producto_nombre:"Prensa CHUSPA Mini", estado:"abierta",
+        mensajes: [
+          { autor_tipo:"comprador", texto:"Hola, ya pagué la prensa, va el comprobante.", imagen_url:"", creado_en:"2026-08-02T10:10:00" },
         ],
       },
     ],
@@ -740,12 +754,14 @@
     catch(e){ return ""; }
   }
 
-  function renderConvLog(el, mensajes){
+  function renderConvLog(el, mensajes, miTipo){
+    miTipo = miTipo || "artista";
     el.innerHTML = (mensajes || []).map(m => {
-      const mio = m.autor_tipo === "artista";
+      const mio = m.autor_tipo === miTipo;
       const img = m.imagen_url ? `<img src="${m.imagen_url}" alt="Comprobante">` : "";
       const texto = m.texto ? `<span>${m.texto.replace(/</g, "&lt;")}</span>` : "";
-      return `<div class="conv-msg ${mio ? "mio" : "otro"}">${texto}${img}<span class="hora">${m.autor_tipo === "comprador" ? "Comprador" : "Tú"} · ${horaConv(m.creado_en)}</span></div>`;
+      const quien = mio ? "Tú" : (miTipo === "artista" ? "Comprador" : "Artista");
+      return `<div class="conv-msg ${mio ? "mio" : "otro"}">${texto}${img}<span class="hora">${quien} · ${horaConv(m.creado_en)}</span></div>`;
     }).join("");
     el.scrollTop = el.scrollHeight;
   }
@@ -774,6 +790,35 @@
               </div>
             </div>
             <button class="conv-cerrar-btn" data-id="${c.id}" type="button">Cerrar conversación</button>
+            ` : `<p class="conv-cerrada-note">Conversación cerrada.</p>`}
+          </div>
+        </div>
+      </div>`).join("");
+  }
+
+  function renderMisConversaciones(list){
+    const el = $("#mis-conversaciones-list");
+    if(!list || !list.length){ el.innerHTML = '<p class="empty">Aún no le escribiste a ningún artista.</p>'; return; }
+    el.innerHTML = list.map(c => `
+      <div class="conv-item" data-id="${c.id}">
+        <div class="conv-item-head mis-conv-item-head" data-id="${c.id}">
+          <div>
+            <strong>${c.producto_nombre}</strong>
+            <span>Tu conversación con el artista</span>
+          </div>
+          <span class="pill ${c.estado === 'abierta' ? 'pendiente' : 'rechazado'}">${c.estado}</span>
+        </div>
+        <div class="conv-item-body">
+          <div class="conv-item-body-inner">
+            <div class="conv-log" id="mis-conv-log-${c.id}"></div>
+            ${c.estado === "abierta" ? `
+            <div class="conv-reply">
+              <textarea id="mis-conv-msg-${c.id}" placeholder="Responder…"></textarea>
+              <div class="conv-reply-row">
+                <input type="file" id="mis-conv-img-${c.id}" accept="image/*">
+                <button class="btn btn-ghost mis-conv-enviar" data-id="${c.id}" type="button">Enviar</button>
+              </div>
+            </div>
             ` : `<p class="conv-cerrada-note">Conversación cerrada.</p>`}
           </div>
         </div>
@@ -933,6 +978,7 @@
       renderVentaProductoOptions(MOCK.productos);
       renderVentas(MOCK.ventas);
       renderConversaciones(MOCK.conversaciones);
+      renderMisConversaciones(MOCK.misConversaciones);
       renderPerfilPublicoForm(MOCK.profile);
       renderContenido(MOCK.contenido);
       showDashboard();
@@ -1074,6 +1120,35 @@
         if (item) { item.classList.add("open"); renderConvLog($("#conv-log-" + id), conv.mensajes); }
       }
     });
+
+    $("#mis-conversaciones-list").addEventListener("click", (e) => {
+      const headEl = e.target.closest(".mis-conv-item-head");
+      if (headEl) {
+        const item = headEl.closest(".conv-item");
+        const wasOpen = item.classList.contains("open");
+        document.querySelectorAll("#mis-conversaciones-list .conv-item.open").forEach(o => o.classList.remove("open"));
+        if (!wasOpen) {
+          item.classList.add("open");
+          const conv = MOCK.misConversaciones.find(c => c.id === headEl.dataset.id);
+          renderConvLog($("#mis-conv-log-" + headEl.dataset.id), conv ? conv.mensajes : [], "comprador");
+        }
+        return;
+      }
+      if (e.target.classList.contains("mis-conv-enviar")) {
+        const id = e.target.dataset.id;
+        const conv = MOCK.misConversaciones.find(c => c.id === id);
+        const texto = $("#mis-conv-msg-" + id).value.trim();
+        const file = $("#mis-conv-img-" + id).files[0];
+        if (!texto && !file) return;
+        conv.mensajes.push({
+          autor_tipo:"comprador", texto: texto || null,
+          imagen_url: file ? URL.createObjectURL(file) : "",
+          creado_en: new Date().toISOString(),
+        });
+        $("#mis-conv-msg-" + id).value = "";
+        renderConvLog($("#mis-conv-log-" + id), conv.mensajes, "comprador");
+      }
+    });
     return; // no seguimos con la lógica real de Supabase
   }
 
@@ -1116,6 +1191,7 @@
     renderVentas((ventas || []).map(v => ({ ...v, producto_nombre: v.productos && v.productos.nombre })));
 
     await cargarConversaciones();
+    await cargarMisConversaciones();
 
     if (mundos.length) {
       const { data: contenido } = await supabase.from("contenido_mundo").select("*").in("mundo", mundos);
@@ -1359,6 +1435,60 @@
       await supabase.from("conversaciones").update({ estado:"cerrada" }).eq("id", id).eq("member_id", currentUser.id);
       if (convPollTimer) { clearInterval(convPollTimer); convPollTimer = null; }
       await cargarConversaciones();
+    }
+  });
+
+  // ---------- mis conversaciones (como comprador) ----------
+  let misConvAbiertaId = null;
+  let misConvPollTimer = null;
+
+  async function cargarMisConversaciones(){
+    const { data } = await supabase.from("conversaciones").select("*, productos(nombre)").eq("comprador_uid", currentUser.id).order("creado_en", { ascending:false });
+    renderMisConversaciones((data || []).map(c => ({ ...c, producto_nombre: c.productos && c.productos.nombre })));
+  }
+
+  async function pintarLogMiConversacion(id){
+    const el = $("#mis-conv-log-" + id);
+    if (!el) return;
+    const { data: mensajes } = await supabase.from("mensajes").select("*").eq("conversacion_id", id).order("creado_en", { ascending:true });
+    const conImagenes = await Promise.all((mensajes || []).map(async m => ({ ...m, imagen_url: await firmarComprobante(m.imagen_path) })));
+    renderConvLog(el, conImagenes, "comprador");
+  }
+
+  $("#mis-conversaciones-list").addEventListener("click", async (e) => {
+    const headEl = e.target.closest(".mis-conv-item-head");
+    if (headEl) {
+      const id = headEl.dataset.id;
+      const item = headEl.closest(".conv-item");
+      const wasOpen = item.classList.contains("open");
+      document.querySelectorAll("#mis-conversaciones-list .conv-item.open").forEach(o => o.classList.remove("open"));
+      if (misConvPollTimer) { clearInterval(misConvPollTimer); misConvPollTimer = null; }
+      misConvAbiertaId = null;
+      if (!wasOpen) {
+        item.classList.add("open");
+        misConvAbiertaId = id;
+        await pintarLogMiConversacion(id);
+        misConvPollTimer = setInterval(() => pintarLogMiConversacion(id), 4000);
+      }
+      return;
+    }
+    if (e.target.classList.contains("mis-conv-enviar")) {
+      const id = e.target.dataset.id;
+      const textEl = $("#mis-conv-msg-" + id);
+      const fileEl = $("#mis-conv-img-" + id);
+      const texto = textEl.value.trim();
+      const file = fileEl.files[0];
+      if (!texto && !file) return;
+      try {
+        let imagenPath = null;
+        if (file) imagenPath = await subirComprobante(file, id);
+        const { error } = await supabase.from("mensajes").insert({ conversacion_id: id, texto: texto || null, imagen_path: imagenPath });
+        if (error) throw error;
+        textEl.value = ""; fileEl.value = "";
+        await pintarLogMiConversacion(id);
+      } catch (err) {
+        alert("No se pudo enviar: " + err.message);
+      }
     }
   });
 
