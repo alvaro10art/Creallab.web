@@ -144,6 +144,8 @@
   .pill.proceso, .pill.pendiente{background:#FFF3E0; color:#9A6300;}
   .pill.aprobado{background:#EAF6EC; color:#1A6B33;}
   .pill.rechazado{background:#FDECEC; color:#A11;}
+  .pill.confirmada{background:#EAF6EC; color:#1A6B33;}
+  .pill.rechazada{background:#FDECEC; color:#A11;}
   .progress-bar{height:6px; border-radius:999px; background:var(--paper-2); overflow:hidden; margin-top:6px;}
   .progress-bar span{display:block; height:100%; background:var(--clay);}
   .empty{font-size:13px; color:var(--ink-soft); font-style:italic;}
@@ -193,6 +195,12 @@
   .producto-item-top strong{font-size:13.5px;}
   .producto-item-meta{font-size:11.5px; color:var(--ink-soft); margin-top:3px;}
   .producto-del{font-size:11px; color:var(--clay); cursor:pointer; background:none; border:none; padding:6px 0 0; font-family:var(--sans);}
+
+  /* ---------- mis ventas (comisiones) ---------- */
+  .venta-item{padding:12px 0; border-bottom:1px solid var(--line);}
+  .venta-item:last-child{border-bottom:none;}
+  .venta-split{font-size:11.5px; color:var(--ink-soft); margin-top:5px; line-height:1.5;}
+  .venta-del{font-size:11px; color:var(--clay); cursor:pointer; background:none; border:none; padding:6px 0 0; font-family:var(--sans);}
 
   /* ---------- premios ---------- */
   .premio-item{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
@@ -413,6 +421,24 @@
           </div>
         </div>
       </div>
+
+      <div class="card wide" id="card-ventas">
+        <h2><span class="dot"></span>Mis ventas</h2>
+        <p class="mundos-note">Cuando cierres una venta por WhatsApp, repórtala aquí. El equipo de CREALLAB la confirma y ahí queda el reparto: <strong>70/30 en cursos</strong> y <strong>90/10 en obras, herramientas y materiales, y proyectos</strong> — la parte mayor siempre es tuya.</p>
+        <div id="ventas-list"><p class="empty">Aún no reportas ventas.</p></div>
+        <div class="producto-form">
+          <select id="venta-producto" class="full">
+            <option value="">Selecciona el producto vendido…</option>
+          </select>
+          <input type="number" id="venta-monto" min="0" step="0.01" placeholder="Monto vendido (S/)">
+          <input type="text" id="venta-comprador" placeholder="Comprador (opcional)">
+          <textarea id="venta-notas" class="full" rows="2" placeholder="Notas (opcional)"></textarea>
+          <div class="full">
+            <button id="btn-reportar-venta" class="btn btn-ghost" type="button">+ Reportar venta</button>
+            <span class="mundos-msg" id="venta-msg"></span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </main>
@@ -511,7 +537,10 @@
       { id:"o1", titulo:"Chuspa roja edición limitada", descripcion:"Tejido a mano, técnica ancestral.", imagen_url:"", mundo:"ALLtaller" },
     ],
     productos: [
-      { id:"pr1", nombre:"Chuspa roja edición limitada", categoria:"OBRAS", tipo:"Tejido", precio:180, estado:"pendiente" },
+      { id:"pr1", nombre:"Chuspa roja edición limitada", categoria:"OBRAS", tipo:"Tejido", precio:180, estado:"aprobado" },
+    ],
+    ventas: [
+      { id:"v1", producto_nombre:"Chuspa roja edición limitada", monto:180, comprador:"Ana R.", estado:"confirmada", comision_pct:10, comision_monto:18, monto_artista:162, liquidado:false },
     ],
     contenido: [
       { titulo:"Guía: preparación de matriz para grabado", descripcion:"PDF descargable con el paso a paso.", tipo:"contenido" },
@@ -617,6 +646,47 @@
         <div class="producto-item-meta">${p.categoria}${p.tipo ? " · " + p.tipo : ""} · ${money(p.precio)}</div>
         <button class="producto-del" data-id="${p.id}" type="button">Quitar</button>
       </div>`).join("");
+  }
+
+  function comisionPctPara(categoria){
+    return categoria === "CURSOS" ? 30 : 10;
+  }
+
+  function renderVentaProductoOptions(productos){
+    const el = $("#venta-producto");
+    const aprobados = (productos || []).filter(p => p.estado === "aprobado");
+    if (!aprobados.length) {
+      el.innerHTML = '<option value="">Aún no tienes productos aprobados</option>';
+      return;
+    }
+    el.innerHTML = '<option value="">Selecciona el producto vendido…</option>'
+      + aprobados.map(p => `<option value="${p.id}">${p.nombre}</option>`).join("");
+  }
+
+  function renderVentas(list){
+    const el = $("#ventas-list");
+    if(!list || !list.length){ el.innerHTML = '<p class="empty">Aún no reportas ventas.</p>'; return; }
+    el.innerHTML = list.map(v => {
+      let detalle;
+      if (v.estado === "confirmada") {
+        detalle = `Tu parte: ${money(v.monto_artista)} · Comisión CREALLAB: ${money(v.comision_monto)} (${v.comision_pct}%)`
+          + (v.liquidado ? " · comisión ya liquidada ✓" : " · comisión pendiente de cobro");
+      } else if (v.estado === "rechazada") {
+        detalle = v.notas ? "Motivo: " + v.notas : "El equipo no pudo confirmar esta venta.";
+      } else {
+        detalle = "Esperando confirmación del equipo CREALLAB.";
+      }
+      return `
+      <div class="venta-item" data-id="${v.id}">
+        <div class="producto-item-top">
+          <strong>${v.producto_nombre || "Producto"}</strong>
+          <span class="pill ${v.estado}">${v.estado}</span>
+        </div>
+        <div class="producto-item-meta">Vendido en ${money(v.monto)}${v.comprador ? " · " + v.comprador : ""}</div>
+        <div class="venta-split">${detalle}</div>
+        ${v.estado === "pendiente" ? `<button class="venta-del" data-id="${v.id}" type="button">Quitar</button>` : ""}
+      </div>`;
+    }).join("");
   }
 
   // ---------- fotos de perfil / portada ----------
@@ -769,6 +839,8 @@
       renderPremios(MOCK.premios);
       renderObras(MOCK.obras);
       renderProductos(MOCK.productos);
+      renderVentaProductoOptions(MOCK.productos);
+      renderVentas(MOCK.ventas);
       renderPerfilPublicoForm(MOCK.profile);
       renderContenido(MOCK.contenido);
       showDashboard();
@@ -838,6 +910,38 @@
       if (!e.target.classList.contains("producto-del")) return;
       MOCK.productos = MOCK.productos.filter(p => p.id !== e.target.dataset.id);
       renderProductos(MOCK.productos);
+      renderVentaProductoOptions(MOCK.productos);
+    });
+    $("#btn-reportar-venta").addEventListener("click", () => {
+      const productoId = $("#venta-producto").value;
+      const monto = parseFloat($("#venta-monto").value);
+      if (!productoId) { $("#venta-msg").textContent = "Elige qué producto vendiste."; return; }
+      if (!monto || monto <= 0) { $("#venta-msg").textContent = "Ingresa el monto de la venta."; return; }
+      const producto = MOCK.productos.find(p => p.id === productoId);
+      const pct = comisionPctPara(producto ? producto.categoria : "OBRAS");
+      const comision = Math.round(monto * pct) / 100;
+      MOCK.ventas.push({
+        id: "v" + (MOCK.ventas.length + 1),
+        producto_nombre: producto ? producto.nombre : "Producto",
+        monto,
+        comprador: $("#venta-comprador").value.trim(),
+        notas: $("#venta-notas").value.trim(),
+        estado: "pendiente",
+        comision_pct: pct,
+        comision_monto: comision,
+        monto_artista: monto - comision,
+        liquidado: false,
+      });
+      renderVentas(MOCK.ventas);
+      ["#venta-monto","#venta-comprador","#venta-notas"].forEach(sel => $(sel).value = "");
+      $("#venta-producto").value = "";
+      $("#venta-msg").textContent = "Reportada, pendiente de confirmación (modo demo) ✓";
+      setTimeout(() => { $("#venta-msg").textContent = ""; }, 3000);
+    });
+    $("#ventas-list").addEventListener("click", (e) => {
+      if (!e.target.classList.contains("venta-del")) return;
+      MOCK.ventas = MOCK.ventas.filter(v => v.id !== e.target.dataset.id);
+      renderVentas(MOCK.ventas);
     });
     return; // no seguimos con la lógica real de Supabase
   }
@@ -875,6 +979,10 @@
 
     const { data: productos } = await supabase.from("productos").select("*").eq("member_id", user.id).order("creado_en", { ascending:false });
     renderProductos(productos);
+    renderVentaProductoOptions(productos);
+
+    const { data: ventas } = await supabase.from("ventas").select("*, productos(nombre)").eq("member_id", user.id).order("fecha_reportada", { ascending:false });
+    renderVentas((ventas || []).map(v => ({ ...v, producto_nombre: v.productos && v.productos.nombre })));
 
     if (mundos.length) {
       const { data: contenido } = await supabase.from("contenido_mundo").select("*").in("mundo", mundos);
@@ -992,6 +1100,7 @@
     $("#prod-mundo").value = "";
     const { data: productos } = await supabase.from("productos").select("*").eq("member_id", currentUser.id).order("creado_en", { ascending:false });
     renderProductos(productos);
+    renderVentaProductoOptions(productos);
     msgEl.textContent = "Publicado, pendiente de revisión ✓";
     setTimeout(() => { msgEl.textContent = ""; }, 3000);
   });
@@ -1001,6 +1110,42 @@
     await supabase.from("productos").delete().eq("id", e.target.dataset.id).eq("member_id", currentUser.id);
     const { data: productos } = await supabase.from("productos").select("*").eq("member_id", currentUser.id).order("creado_en", { ascending:false });
     renderProductos(productos);
+    renderVentaProductoOptions(productos);
+  });
+
+  async function cargarVentas(){
+    const { data: ventas } = await supabase.from("ventas").select("*, productos(nombre)").eq("member_id", currentUser.id).order("fecha_reportada", { ascending:false });
+    renderVentas((ventas || []).map(v => ({ ...v, producto_nombre: v.productos && v.productos.nombre })));
+  }
+
+  $("#btn-reportar-venta").addEventListener("click", async () => {
+    if (!currentUser) return;
+    const msgEl = $("#venta-msg");
+    const productoId = $("#venta-producto").value;
+    const monto = parseFloat($("#venta-monto").value);
+    if (!productoId) { msgEl.textContent = "Elige qué producto vendiste."; return; }
+    if (!monto || monto <= 0) { msgEl.textContent = "Ingresa el monto de la venta."; return; }
+
+    const { error } = await supabase.from("ventas").insert({
+      member_id: currentUser.id,
+      producto_id: productoId,
+      monto,
+      comprador: $("#venta-comprador").value.trim() || null,
+      notas: $("#venta-notas").value.trim() || null,
+    });
+    if (error) { msgEl.textContent = "Error: " + error.message; return; }
+
+    ["#venta-monto","#venta-comprador","#venta-notas"].forEach(sel => $(sel).value = "");
+    $("#venta-producto").value = "";
+    await cargarVentas();
+    msgEl.textContent = "Reportada, pendiente de confirmación ✓";
+    setTimeout(() => { msgEl.textContent = ""; }, 3000);
+  });
+
+  $("#ventas-list").addEventListener("click", async (e) => {
+    if (!e.target.classList.contains("venta-del") || !currentUser) return;
+    await supabase.from("ventas").delete().eq("id", e.target.dataset.id).eq("member_id", currentUser.id);
+    await cargarVentas();
   });
 
   $("#btn-guardar-mundos").addEventListener("click", async () => {
