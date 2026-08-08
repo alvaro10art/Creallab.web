@@ -269,6 +269,21 @@
     return data.session;
   }
 
+  // Si ya tiene una sesión de miembro CREALLAB abierta en este navegador
+  // (por ejemplo porque entró antes a su cuenta en creallab-portal.html),
+  // le autocompletamos sus datos y la conversación queda ligada a su
+  // cuenta real — así le va a aparecer en su propio buzón, no solo en
+  // este navegador. Si no tiene sesión, sigue como invitado normal.
+  async function autocompletarSiEsMiembro(){
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session || session.user.is_anonymous) return;
+    const { data: profile } = await supabase.from("profiles").select("nombre,email").eq("id", session.user.id).maybeSingle();
+    if (profile) {
+      $("#f-nombre").value = profile.nombre || "";
+      $("#f-contacto").value = profile.email || "";
+    }
+  }
+
   async function cargarProducto(id){
     const { data, error } = await supabase.from("productos")
       .select("*, profiles(nombre)")
@@ -393,6 +408,7 @@
     if (!producto) { showError("Este producto ya no está disponible."); return; }
     productoActual = producto;
     fillProductoCard("form", producto);
+    await autocompletarSiEsMiembro();
     show("view-form");
   })();
 })();
