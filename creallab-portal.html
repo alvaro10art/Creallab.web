@@ -278,6 +278,32 @@
     color:#fff; font-size:16px; opacity:0; cursor:pointer; transition:opacity .15s; border-radius:50%;
   }
   .perfil-editor-avatar:hover .avatar-upload-btn{opacity:1;}
+
+  /* ---------- buzón (header) ---------- */
+  .buzon-wrap{position:relative;}
+  #btn-buzon{position:relative;}
+  .buzon-badge{
+    display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px;
+    padding:0 4px; border-radius:999px; background:var(--clay); color:#fff; font-size:10px; font-weight:700;
+    margin-left:6px; position:relative; top:-1px;
+  }
+  .buzon-dropdown{
+    position:absolute; top:calc(100% + 10px); right:0; width:340px; max-height:min(70vh, 480px);
+    overflow-y:auto; background:#fff; border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 16px 36px rgba(0,0,0,0.16); padding:16px; z-index:60;
+  }
+  .buzon-seccion + .buzon-seccion{margin-top:16px; padding-top:14px; border-top:1px solid var(--line);}
+  .buzon-seccion h3{font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); margin:0 0 8px;}
+  .buzon-item{
+    display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 0;
+    border-bottom:1px solid var(--line); cursor:pointer; font-size:12.5px; background:none; border-left:none; border-right:none; border-top:none;
+    width:100%; text-align:left; font-family:var(--sans); color:var(--ink);
+  }
+  .buzon-item:last-child{border-bottom:none;}
+  .buzon-item:hover{color:var(--clay);}
+  .buzon-item strong{display:block; font-size:12.5px;}
+  .buzon-item span.sub{display:block; font-size:11px; color:var(--ink-soft);}
+  @media (max-width:480px){ .buzon-dropdown{width:calc(100vw - 32px); right:-8px;} }
 </style>
 </head>
 <body>
@@ -298,6 +324,22 @@
   <div class="container">
     <div class="brand-name">CRE<span class="all">ALL</span>AB <span style="font-size:12px; font-weight:400; color:var(--ink-soft);">· mi cuenta</span></div>
     <div style="display:flex; align-items:center; gap:10px;">
+      <div class="buzon-wrap">
+        <button id="btn-buzon" class="btn btn-ghost hidden" type="button">
+          ✉ Mensajes
+          <span id="buzon-badge" class="buzon-badge hidden">0</span>
+        </button>
+        <div id="buzon-dropdown" class="buzon-dropdown hidden">
+          <div class="buzon-seccion">
+            <h3>Como vendedor</h3>
+            <div id="buzon-vendedor-list"><p class="empty">Sin conversaciones.</p></div>
+          </div>
+          <div class="buzon-seccion">
+            <h3>Como comprador</h3>
+            <div id="buzon-comprador-list"><p class="empty">Sin conversaciones.</p></div>
+          </div>
+        </div>
+      </div>
       <button id="btn-abrir-perfil" class="btn btn-ghost hidden">Mi perfil público</button>
       <button id="btn-logout" class="btn btn-ghost hidden">Cerrar sesión</button>
     </div>
@@ -766,7 +808,68 @@
     el.scrollTop = el.scrollHeight;
   }
 
+  // ---------- buzón (resumen en el header) ----------
+  let ultimasConvVendedor = [];
+  let ultimasConvComprador = [];
+
+  function abrirConversacionDesde(id, esComprador){
+    $("#buzon-dropdown").classList.add("hidden");
+    const selector = esComprador ? `.mis-conv-item-head[data-id="${id}"]` : `.conv-item-head[data-id="${id}"]:not(.mis-conv-item-head)`;
+    const head = document.querySelector(selector);
+    if (!head) return;
+    const item = head.closest(".conv-item");
+    if (!item.classList.contains("open")) head.click();
+    item.scrollIntoView({ behavior:"smooth", block:"center" });
+  }
+
+  function renderBuzon(){
+    const vEl = $("#buzon-vendedor-list");
+    const cEl = $("#buzon-comprador-list");
+    vEl.innerHTML = ultimasConvVendedor.length
+      ? ultimasConvVendedor.map(c => `
+        <button class="buzon-item" type="button" data-id="${c.id}" data-tipo="vendedor">
+          <span><strong>${c.comprador_nombre}</strong><span class="sub">${c.producto_nombre}</span></span>
+          <span class="pill ${c.estado === 'abierta' ? 'pendiente' : 'rechazado'}">${c.estado}</span>
+        </button>`).join("")
+      : '<p class="empty">Sin conversaciones.</p>';
+    cEl.innerHTML = ultimasConvComprador.length
+      ? ultimasConvComprador.map(c => `
+        <button class="buzon-item" type="button" data-id="${c.id}" data-tipo="comprador">
+          <span><strong>${c.producto_nombre}</strong><span class="sub">Tu conversación con el artista</span></span>
+          <span class="pill ${c.estado === 'abierta' ? 'pendiente' : 'rechazado'}">${c.estado}</span>
+        </button>`).join("")
+      : '<p class="empty">Sin conversaciones.</p>';
+
+    const abiertas = ultimasConvVendedor.filter(c => c.estado === "abierta").length
+      + ultimasConvComprador.filter(c => c.estado === "abierta").length;
+    const badge = $("#buzon-badge");
+    badge.textContent = abiertas;
+    badge.classList.toggle("hidden", abiertas === 0);
+  }
+
+  $("#buzon-vendedor-list").addEventListener("click", (e) => {
+    const btn = e.target.closest(".buzon-item");
+    if (btn) abrirConversacionDesde(btn.dataset.id, false);
+  });
+  $("#buzon-comprador-list").addEventListener("click", (e) => {
+    const btn = e.target.closest(".buzon-item");
+    if (btn) abrirConversacionDesde(btn.dataset.id, true);
+  });
+  $("#btn-buzon").addEventListener("click", (e) => {
+    e.stopPropagation();
+    $("#buzon-dropdown").classList.toggle("hidden");
+  });
+  document.addEventListener("click", (e) => {
+    const wrap = $(".buzon-wrap");
+    if (wrap && !wrap.contains(e.target)) $("#buzon-dropdown").classList.add("hidden");
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") $("#buzon-dropdown").classList.add("hidden");
+  });
+
   function renderConversaciones(list){
+    ultimasConvVendedor = list || [];
+    renderBuzon();
     const el = $("#conversaciones-list");
     if(!list || !list.length){ el.innerHTML = '<p class="empty">Aún no tienes conversaciones.</p>'; return; }
     el.innerHTML = list.map(c => `
@@ -797,6 +900,8 @@
   }
 
   function renderMisConversaciones(list){
+    ultimasConvComprador = list || [];
+    renderBuzon();
     const el = $("#mis-conversaciones-list");
     if(!list || !list.length){ el.innerHTML = '<p class="empty">Aún no le escribiste a ningún artista.</p>'; return; }
     el.innerHTML = list.map(c => `
@@ -952,12 +1057,15 @@
     viewDash.classList.remove("hidden");
     btnLogout.classList.remove("hidden");
     btnAbrirPerfil.classList.remove("hidden");
+    $("#btn-buzon").classList.remove("hidden");
   }
   function showLogin(){
     viewDash.classList.add("hidden");
     viewLogin.classList.remove("hidden");
     btnLogout.classList.add("hidden");
     btnAbrirPerfil.classList.add("hidden");
+    $("#btn-buzon").classList.add("hidden");
+    $("#buzon-dropdown").classList.add("hidden");
     modalPerfil.classList.add("hidden");
   }
 
