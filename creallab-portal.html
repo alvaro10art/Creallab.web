@@ -202,6 +202,28 @@
   .venta-split{font-size:11.5px; color:var(--ink-soft); margin-top:5px; line-height:1.5;}
   .venta-del{font-size:11px; color:var(--clay); cursor:pointer; background:none; border:none; padding:6px 0 0; font-family:var(--sans);}
 
+  /* ---------- mensajes de compradores ---------- */
+  .conv-item{border-bottom:1px solid var(--line);}
+  .conv-item:last-child{border-bottom:none;}
+  .conv-item-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 0; cursor:pointer;}
+  .conv-item-head strong{font-size:13.5px; display:block;}
+  .conv-item-head span{font-size:11.5px; color:var(--ink-soft);}
+  .conv-item-body{max-height:0; overflow:hidden; transition:max-height .2s ease;}
+  .conv-item.open .conv-item-body{max-height:640px;}
+  .conv-item-body-inner{padding:0 0 16px;}
+  .conv-log{max-height:260px; overflow-y:auto; display:flex; flex-direction:column; margin-bottom:10px; padding:10px; background:var(--paper-2); border-radius:10px;}
+  .conv-msg{max-width:80%; padding:8px 12px; border-radius:12px; font-size:12.5px; line-height:1.4; margin-bottom:8px;}
+  .conv-msg.mio{background:var(--clay); color:#fff; margin-left:auto; border-bottom-right-radius:4px;}
+  .conv-msg.otro{background:#fff; margin-right:auto; border-bottom-left-radius:4px; border:1px solid var(--line);}
+  .conv-msg img{max-width:100%; border-radius:8px; margin-top:5px; display:block;}
+  .conv-msg .hora{font-size:9.5px; opacity:.65; margin-top:4px; display:block;}
+  .conv-reply{display:flex; flex-direction:column; gap:8px;}
+  .conv-reply textarea{width:100%; padding:9px 11px; border-radius:8px; border:1px solid var(--line); font-family:var(--sans); font-size:13px; resize:vertical; min-height:50px;}
+  .conv-reply-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .conv-reply-row input[type="file"]{font-size:11px; flex:1; min-width:140px;}
+  .conv-cerrar-btn{font-size:11px; color:var(--clay); background:none; border:none; cursor:pointer; font-family:var(--sans); padding:0; margin-top:8px;}
+  .conv-cerrada-note{font-size:11.5px; color:var(--ink-soft); font-style:italic;}
+
   /* ---------- premios ---------- */
   .premio-item{display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);}
   .premio-item:last-child{border-bottom:none;}
@@ -443,6 +465,12 @@
           </div>
         </div>
       </div>
+
+      <div class="card wide" id="card-mensajes">
+        <h2><span class="dot"></span>Mensajes de compradores</h2>
+        <p class="mundos-note">Cuando alguien te escriba desde el catálogo (con o sin foto de comprobante), la conversación aparece aquí — solo la ven ustedes dos.</p>
+        <div id="conversaciones-list"><p class="empty">Aún no tienes conversaciones.</p></div>
+      </div>
     </div>
   </div>
 </main>
@@ -546,6 +574,15 @@
     ventas: [
       { id:"v1", producto_nombre:"Chuspa roja edición limitada", monto:180, medio_pago:"whatsapp", comprador:"Ana R.", estado:"confirmada", comision_pct:10, comision_monto:18, monto_artista:162, liquidado:false },
       { id:"v2", producto_nombre:"Chuspa roja edición limitada", monto:180, medio_pago:"mercadopago", comprador:"Luis T.", estado:"confirmada", comision_pct:10, comision_monto:18, monto_artista:162, liquidado:false },
+    ],
+    conversaciones: [
+      {
+        id:"c1", producto_nombre:"Chuspa roja edición limitada", comprador_nombre:"Ana R.", estado:"abierta",
+        mensajes: [
+          { autor_tipo:"comprador", texto:"Hola, ya hice el pago, acá está el comprobante.", imagen_url:"", creado_en:"2026-08-01T15:20:00" },
+          { autor_tipo:"artista", texto:"¡Recibido! En un momento te confirmo el envío.", imagen_url:"", creado_en:"2026-08-01T15:24:00" },
+        ],
+      },
     ],
     contenido: [
       { titulo:"Guía: preparación de matriz para grabado", descripcion:"PDF descargable con el paso a paso.", tipo:"contenido" },
@@ -696,6 +733,51 @@
         ${v.estado === "pendiente" ? `<button class="venta-del" data-id="${v.id}" type="button">Quitar</button>` : ""}
       </div>`;
     }).join("");
+  }
+
+  function horaConv(iso){
+    try { return new Date(iso).toLocaleString("es-PE", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" }); }
+    catch(e){ return ""; }
+  }
+
+  function renderConvLog(el, mensajes){
+    el.innerHTML = (mensajes || []).map(m => {
+      const mio = m.autor_tipo === "artista";
+      const img = m.imagen_url ? `<img src="${m.imagen_url}" alt="Comprobante">` : "";
+      const texto = m.texto ? `<span>${m.texto.replace(/</g, "&lt;")}</span>` : "";
+      return `<div class="conv-msg ${mio ? "mio" : "otro"}">${texto}${img}<span class="hora">${m.autor_tipo === "comprador" ? "Comprador" : "Tú"} · ${horaConv(m.creado_en)}</span></div>`;
+    }).join("");
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function renderConversaciones(list){
+    const el = $("#conversaciones-list");
+    if(!list || !list.length){ el.innerHTML = '<p class="empty">Aún no tienes conversaciones.</p>'; return; }
+    el.innerHTML = list.map(c => `
+      <div class="conv-item" data-id="${c.id}">
+        <div class="conv-item-head" data-id="${c.id}">
+          <div>
+            <strong>${c.comprador_nombre}</strong>
+            <span>${c.producto_nombre}</span>
+          </div>
+          <span class="pill ${c.estado === 'abierta' ? 'pendiente' : 'rechazado'}">${c.estado}</span>
+        </div>
+        <div class="conv-item-body">
+          <div class="conv-item-body-inner">
+            <div class="conv-log" id="conv-log-${c.id}"></div>
+            ${c.estado === "abierta" ? `
+            <div class="conv-reply">
+              <textarea id="conv-msg-${c.id}" placeholder="Responder…"></textarea>
+              <div class="conv-reply-row">
+                <input type="file" id="conv-img-${c.id}" accept="image/*">
+                <button class="btn btn-ghost conv-enviar" data-id="${c.id}" type="button">Enviar</button>
+              </div>
+            </div>
+            <button class="conv-cerrar-btn" data-id="${c.id}" type="button">Cerrar conversación</button>
+            ` : `<p class="conv-cerrada-note">Conversación cerrada.</p>`}
+          </div>
+        </div>
+      </div>`).join("");
   }
 
   // ---------- fotos de perfil / portada ----------
@@ -850,6 +932,7 @@
       renderProductos(MOCK.productos);
       renderVentaProductoOptions(MOCK.productos);
       renderVentas(MOCK.ventas);
+      renderConversaciones(MOCK.conversaciones);
       renderPerfilPublicoForm(MOCK.profile);
       renderContenido(MOCK.contenido);
       showDashboard();
@@ -953,6 +1036,44 @@
       MOCK.ventas = MOCK.ventas.filter(v => v.id !== e.target.dataset.id);
       renderVentas(MOCK.ventas);
     });
+
+    $("#conversaciones-list").addEventListener("click", (e) => {
+      const headEl = e.target.closest(".conv-item-head");
+      if (headEl) {
+        const item = headEl.closest(".conv-item");
+        const wasOpen = item.classList.contains("open");
+        document.querySelectorAll(".conv-item.open").forEach(o => o.classList.remove("open"));
+        if (!wasOpen) {
+          item.classList.add("open");
+          const conv = MOCK.conversaciones.find(c => c.id === headEl.dataset.id);
+          renderConvLog($("#conv-log-" + headEl.dataset.id), conv ? conv.mensajes : []);
+        }
+        return;
+      }
+      if (e.target.classList.contains("conv-enviar")) {
+        const id = e.target.dataset.id;
+        const conv = MOCK.conversaciones.find(c => c.id === id);
+        const texto = $("#conv-msg-" + id).value.trim();
+        const file = $("#conv-img-" + id).files[0];
+        if (!texto && !file) return;
+        conv.mensajes.push({
+          autor_tipo:"artista", texto: texto || null,
+          imagen_url: file ? URL.createObjectURL(file) : "",
+          creado_en: new Date().toISOString(),
+        });
+        $("#conv-msg-" + id).value = "";
+        renderConvLog($("#conv-log-" + id), conv.mensajes);
+        return;
+      }
+      if (e.target.classList.contains("conv-cerrar-btn")) {
+        const id = e.target.dataset.id;
+        const conv = MOCK.conversaciones.find(c => c.id === id);
+        conv.estado = "cerrada";
+        renderConversaciones(MOCK.conversaciones);
+        const item = document.querySelector(`.conv-item[data-id="${id}"]`);
+        if (item) { item.classList.add("open"); renderConvLog($("#conv-log-" + id), conv.mensajes); }
+      }
+    });
     return; // no seguimos con la lógica real de Supabase
   }
 
@@ -993,6 +1114,8 @@
 
     const { data: ventas } = await supabase.from("ventas").select("*, productos(nombre)").eq("member_id", user.id).order("fecha_reportada", { ascending:false });
     renderVentas((ventas || []).map(v => ({ ...v, producto_nombre: v.productos && v.productos.nombre })));
+
+    await cargarConversaciones();
 
     if (mundos.length) {
       const { data: contenido } = await supabase.from("contenido_mundo").select("*").in("mundo", mundos);
@@ -1157,6 +1280,86 @@
     if (!e.target.classList.contains("venta-del") || !currentUser) return;
     await supabase.from("ventas").delete().eq("id", e.target.dataset.id).eq("member_id", currentUser.id);
     await cargarVentas();
+  });
+
+  // ---------- mensajes de compradores ----------
+  const comprobanteUrlCache = new Map();
+  let convAbiertaId = null;
+  let convPollTimer = null;
+
+  async function cargarConversaciones(){
+    const { data } = await supabase.from("conversaciones").select("*, productos(nombre)").eq("member_id", currentUser.id).order("creado_en", { ascending:false });
+    renderConversaciones((data || []).map(c => ({ ...c, producto_nombre: c.productos && c.productos.nombre })));
+  }
+
+  async function firmarComprobante(path){
+    if (!path) return "";
+    const cached = comprobanteUrlCache.get(path);
+    if (cached && cached.exp > Date.now()) return cached.url;
+    const { data, error } = await supabase.storage.from("comprobantes").createSignedUrl(path, 3600);
+    if (error || !data) return "";
+    comprobanteUrlCache.set(path, { url: data.signedUrl, exp: Date.now() + 55 * 60 * 1000 });
+    return data.signedUrl;
+  }
+
+  async function subirComprobante(file, idConv){
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `${idConv}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("comprobantes").upload(path, file, { cacheControl:"3600", upsert:false, contentType: file.type || undefined });
+    if (error) throw error;
+    return path;
+  }
+
+  async function pintarLogConversacion(id){
+    const el = $("#conv-log-" + id);
+    if (!el) return;
+    const { data: mensajes } = await supabase.from("mensajes").select("*").eq("conversacion_id", id).order("creado_en", { ascending:true });
+    const conImagenes = await Promise.all((mensajes || []).map(async m => ({ ...m, imagen_url: await firmarComprobante(m.imagen_path) })));
+    renderConvLog(el, conImagenes);
+  }
+
+  $("#conversaciones-list").addEventListener("click", async (e) => {
+    const headEl = e.target.closest(".conv-item-head");
+    if (headEl) {
+      const id = headEl.dataset.id;
+      const item = headEl.closest(".conv-item");
+      const wasOpen = item.classList.contains("open");
+      document.querySelectorAll(".conv-item.open").forEach(o => o.classList.remove("open"));
+      if (convPollTimer) { clearInterval(convPollTimer); convPollTimer = null; }
+      convAbiertaId = null;
+      if (!wasOpen) {
+        item.classList.add("open");
+        convAbiertaId = id;
+        await pintarLogConversacion(id);
+        convPollTimer = setInterval(() => pintarLogConversacion(id), 4000);
+      }
+      return;
+    }
+    if (e.target.classList.contains("conv-enviar")) {
+      const id = e.target.dataset.id;
+      const textEl = $("#conv-msg-" + id);
+      const fileEl = $("#conv-img-" + id);
+      const texto = textEl.value.trim();
+      const file = fileEl.files[0];
+      if (!texto && !file) return;
+      try {
+        let imagenPath = null;
+        if (file) imagenPath = await subirComprobante(file, id);
+        const { error } = await supabase.from("mensajes").insert({ conversacion_id: id, texto: texto || null, imagen_path: imagenPath });
+        if (error) throw error;
+        textEl.value = ""; fileEl.value = "";
+        await pintarLogConversacion(id);
+      } catch (err) {
+        alert("No se pudo enviar: " + err.message);
+      }
+      return;
+    }
+    if (e.target.classList.contains("conv-cerrar-btn")) {
+      const id = e.target.dataset.id;
+      await supabase.from("conversaciones").update({ estado:"cerrada" }).eq("id", id).eq("member_id", currentUser.id);
+      if (convPollTimer) { clearInterval(convPollTimer); convPollTimer = null; }
+      await cargarConversaciones();
+    }
   });
 
   $("#btn-guardar-mundos").addEventListener("click", async () => {
